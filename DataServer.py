@@ -79,8 +79,8 @@ def call_openai(text):
     openai_result = response.choices[0].message.content
 
     # 텍스트를 쉼표로 처리하여 배열로 만듭니다.
-    ingredients = [ingredient.strip().replace('-', '').strip() for ingredient in openai_result.splitlines() if
-                   ingredient.strip()]
+    #ingredients = [ingredient.strip().replace('-', '').strip() for ingredient in openai_result.splitlines() if ingredient.strip()]
+    ingredients = [f"{ingredient.strip().replace('-', '').strip()}" for ingredient in openai_result.splitlines() if ingredient.strip()]
 
     return {"ingredients": ingredients}  # JSON 배열 반환
 
