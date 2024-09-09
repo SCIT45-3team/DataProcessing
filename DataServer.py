@@ -1,12 +1,14 @@
 import subprocess
 import sys
 
+
 # 패키지가 설치되지 않았을 경우 설치하는 함수
 def install_package(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
+
 # 필요한 패키지 목록
-required_packages = ["openai", "python-dotenv", "fastapi", "requests", "uvicorn","python-multipart"]
+required_packages = ["openai", "python-dotenv", "fastapi", "requests", "uvicorn", "python-multipart"]
 
 # 패키지 설치 여부 확인 후 설치
 for package in required_packages:
@@ -66,43 +68,6 @@ def call_clova_ocr(image_file):
     else:
         raise Exception(f"Error: {response.status_code}")
 
-def call_openai_ocr(text):
-    client = OpenAI(api_key=openai_api_key)
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo-1106",
-        messages=[
-            {"role": "system",
-             "content": "Extract only food items and ingredients from the text, ignoring non-food items such as clothing, household items, and others. Return only the names of food products."},
-            {"role": "user", "content": text}
-        ]
-    )
-    # OpenAI의 응답을 JSON으로 변환
-    openai_result = response.choices[0].message.content
-
-    # 텍스트를 쉼표로 처리하여 배열로 만듭니다.
-    ingredients = [f"{ingredient.strip().replace('-', '').strip()}" for ingredient in openai_result.splitlines() if ingredient.strip()]
-
-    return ingredients
-def call_openai_expiration_date(ingredients):
-    # 식품 리스트를 기반으로 소비기한 요청을 위한 프롬프트 생성
-    prompt = f"{', '.join(ingredients)}."
-
-    client = OpenAI(api_key=openai_api_key)
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo-1106",
-        messages=[
-            {"role": "system",
-             "content": "For each food item listed, provide only the expiration date in days. No additional text is needed. For fresh products like milk and fruits, assign shorter expiration dates (e.g., 5), but for dry foods like snacks, ramen, frozen foods, jelly, and chocolate, assign longer expiration dates."},
-            {"role": "user", "content": prompt}
-        ]
-    )
-
-    # OpenAI 응답을 그대로 반환
-    openai_result = response.choices[0].message.content.replace('\n', ',')
-    expiration_dates = [int(x) for x in openai_result.split(',') if x.strip().isdigit()]
-
-    return expiration_dates
-
 
 def call_openai_food_and_expiration(text):
     # 첫 번째 OpenAI 호출: 식품 아이템 추출
@@ -135,7 +100,6 @@ def call_openai_food_and_expiration(text):
         expiration_dates_raw = expiration_response.choices[0].message.content.replace('\n', ',')
         expiration_dates = [int(x.strip()) if x.strip().isdigit() else 0 for x in expiration_dates_raw.split(',')]
 
-
         # 식품 이름과 소비기한을 딕셔너리로 결합
         result = dict(zip(food_items, expiration_dates))
     else:
@@ -146,7 +110,6 @@ def call_openai_food_and_expiration(text):
 
 @app.post("/ocr/")
 async def upload_file(file: UploadFile = File(...)):
-
     # OCR 처리
     ocr_text = call_clova_ocr(file.file)
     # ocr_text = """로딩 중 \영수증 미지참시 교환/환불 불가
@@ -174,16 +137,8 @@ async def upload_file(file: UploadFile = File(...)):
     # , 부 가 세 4,145
     # 합 계 73,550
     # 결제대상금액 73,550"""
-    # OpenAI로 특정 키워드 추출
-    #ingredients = call_openai_ocr(ocr_text)
-    #print(ingredients)
-
-    #expiration_dates = call_openai_expiration_date(ingredients)
-    #print(expiration_dates)
-
-    #combined_result = dict(zip(ingredients, expiration_dates))
-    #print(combined_result)
 
     combined_result = call_openai_food_and_expiration(ocr_text)
     print(combined_result)
+
     return combined_result
