@@ -66,12 +66,13 @@ def call_clova_ocr(image_file):
     else:
         raise Exception(f"Error: {response.status_code}")
 
-def call_openai(text):
+def call_openai_ocr(text):
     client = OpenAI(api_key=openai_api_key)
     response = client.chat.completions.create(
         model="gpt-3.5-turbo-1106",
         messages=[
-            {"role": "system", "content": "Extract only food items from the text."},
+            {"role": "system",
+             "content": "Extract only food items and ingredients from the text, ignoring non-food items such as clothing, household items, and others. Return only the names of food products."},
             {"role": "user", "content": text}
         ]
     )
@@ -79,19 +80,67 @@ def call_openai(text):
     openai_result = response.choices[0].message.content
 
     # 텍스트를 쉼표로 처리하여 배열로 만듭니다.
-    #ingredients = [ingredient.strip().replace('-', '').strip() for ingredient in openai_result.splitlines() if ingredient.strip()]
     ingredients = [f"{ingredient.strip().replace('-', '').strip()}" for ingredient in openai_result.splitlines() if ingredient.strip()]
 
-    return {"ingredients": ingredients}  # JSON 배열 반환
+    return ingredients
+def call_openai_expiration_date(ingredients):
+    # 식품 리스트를 기반으로 소비기한 요청을 위한 프롬프트 생성
+    prompt = f"{', '.join(ingredients)}."
 
+    client = OpenAI(api_key=openai_api_key)
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo-1106",
+        messages=[
+            {"role": "system",
+             "content": "For each food item listed, provide only the expiration date in days. No additional text is needed. For fresh products like milk and fruits, assign shorter expiration dates (e.g., 5), but for dry foods like snacks, ramen, frozen foods, jelly, and chocolate, assign longer expiration dates."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    # OpenAI 응답을 그대로 반환
+    openai_result = response.choices[0].message.content.replace('\n', ',')
+    expiration_dates = [int(x) for x in openai_result.split(',') if x.strip().isdigit()]
+
+    return expiration_dates
 
 @app.post("/ocr/")
 async def upload_file(file: UploadFile = File(...)):
 
     # OCR 처리
-    ocr_text = call_clova_ocr(file.file)
-
+    #ocr_text = call_clova_ocr(file.file)
+    ocr_text = """로딩 중 \영수증 미지참시 교환/환불 불가
+    정상상품에 한함, 30일 이내(신선 7일)
+    교환/환불 구매점에서 가능(결제카드지참)
+    [구 매]2017-06-02 21:13 POS: 1021-5338
+    상품명 단가 수량 금 액
+    01* 노브랜드 굿밀크우 1,680 1 1,680
+    02 스마트알뜰양복커버 2,590 1 2,590
+    03 농심 포스틱 84g 1,120 1 1,120
+    04 농심 올리브짜파게 3,850 1 3,850
+    05* 산딸기 500g/박스 6,980 1 6,980
+    06 (G)서핑여워터슈NY 19,800 1 19,800
+    07 대여용부직포쇼핑백 500 1 500
+    08* 호주곡물오이스터블 14,720 1 14,720
+    09 오뚜기 콤비네이션 5,980 1 5,980
+    10 꼬깔콘허니버터132G 1,580 1 1,580
+    11 CJ미니드레싱골라담 3,980 1 3,980
+    12 청정원허브맛솔트( 1,980 1 1,980
+    13* 태국미니아스파라거 4,580 1 4,580
+    14 롯데 수박바젤리 56 980 2 1,960
+    15 바리스타 쇼콜라 32 2,250 1 2,250
+    (*) 면세 물품 27,960
+    과세 물품 41,445
+    , 부 가 세 4,145
+    합 계 73,550
+    결제대상금액 73,550"""
     # OpenAI로 특정 키워드 추출
-    openai_result = call_openai(ocr_text)
-    print(openai_result)
-    return openai_result
+    ingredients = call_openai_ocr(ocr_text)
+    #print(ingredients)
+
+    expiration_dates = call_openai_expiration_date(ingredients)
+    #print(expiration_dates)
+
+    combined_result = dict(zip(ingredients, expiration_dates))
+    print(combined_result)
+
+    return combined_result

@@ -6,7 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="72cdf7a4-e120-43dc-aeaf-087294f2fcc9" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/naverOCR_openAI.py" beforeDir="false" afterPath="$PROJECT_DIR$/naverOCR_openAI.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DataServer.py" beforeDir="false" afterPath="$PROJECT_DIR$/DataServer.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -68,7 +68,7 @@
       <option name="presentableId" value="Default" />
       <updated>1725613609260</updated>
       <workItem from="1725613610362" duration="9713000" />
-      <workItem from="1725710756755" duration="11049000" />
+      <workItem from="1725710756755" duration="17663000" />
     </task>
     <servers />
   </component>
