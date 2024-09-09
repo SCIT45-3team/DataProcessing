@@ -112,9 +112,9 @@ response = client.chat.completions.create(
     response_format={"type": "json_object"},
     messages=[
         {"role": "system",
-         "content": "You are a helpful assistant to analyze the items from the receipt and output only the food ingredient items in JSON format."},
+         "content": "You are a helpful assistant. Analyze the items from the receipt and extract only the food ingredients with an estimated shelf life (in days) in JSON format."},
         {"role": "user",
-         "content": f"please analyze {string_result}. only extract food ingredient items. If an item is free, set its cost to 0."}
+         "content": f"Please analyze the following receipt: {string_result}. Extract only food ingredient items and assign a shelf life in days (e.g., 10, 5) for each item. Provide the result in JSON format."}
     ]
 )
 
