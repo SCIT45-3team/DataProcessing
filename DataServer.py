@@ -103,44 +103,87 @@ def call_openai_expiration_date(ingredients):
 
     return expiration_dates
 
+
+def call_openai_food_and_expiration(text):
+    # 첫 번째 OpenAI 호출: 식품 아이템 추출
+    client = OpenAI(api_key=openai_api_key)
+    ocr_response = client.chat.completions.create(
+        model="gpt-3.5-turbo-1106",
+        messages=[
+            {"role": "system",
+             "content": "Extract only food items and ingredients from the text, ignoring non-food items such as clothing, household items, and others. Return only the names of food products."},
+            {"role": "user", "content": text}
+        ]
+    )
+
+    food_items = list(map(lambda x: x.replace('-', '').strip(), ocr_response.choices[0].message.content.splitlines()))
+
+    # 두 번째 OpenAI 호출: 각 식품에 대한 소비기한 추출
+    if food_items:
+        food_items_str = ', '.join(food_items)
+        print(food_items_str)
+        expiration_response = client.chat.completions.create(
+            model="gpt-3.5-turbo-1106",
+            messages=[
+                {"role": "system",
+                 "content": "For each food item listed, provide only the expiration date in days. No additional text is needed. For fresh products like milk and fruits, assign shorter expiration dates (e.g., 5), but for dry foods like snacks, ramen, frozen foods, jelly, and chocolate, assign longer expiration dates."},
+                {"role": "user", "content": food_items_str}
+            ]
+        )
+
+        # 두 번째 OpenAI 응답에서 소비기한 추출 및 유효성 검사
+        expiration_dates_raw = expiration_response.choices[0].message.content.replace('\n', ',')
+        expiration_dates = [int(x.strip()) if x.strip().isdigit() else 0 for x in expiration_dates_raw.split(',')]
+
+
+        # 식품 이름과 소비기한을 딕셔너리로 결합
+        result = dict(zip(food_items, expiration_dates))
+    else:
+        result = {}
+
+    return result
+
+
 @app.post("/ocr/")
 async def upload_file(file: UploadFile = File(...)):
 
     # OCR 처리
-    #ocr_text = call_clova_ocr(file.file)
-    ocr_text = """로딩 중 \영수증 미지참시 교환/환불 불가
-    정상상품에 한함, 30일 이내(신선 7일)
-    교환/환불 구매점에서 가능(결제카드지참)
-    [구 매]2017-06-02 21:13 POS: 1021-5338
-    상품명 단가 수량 금 액
-    01* 노브랜드 굿밀크우 1,680 1 1,680
-    02 스마트알뜰양복커버 2,590 1 2,590
-    03 농심 포스틱 84g 1,120 1 1,120
-    04 농심 올리브짜파게 3,850 1 3,850
-    05* 산딸기 500g/박스 6,980 1 6,980
-    06 (G)서핑여워터슈NY 19,800 1 19,800
-    07 대여용부직포쇼핑백 500 1 500
-    08* 호주곡물오이스터블 14,720 1 14,720
-    09 오뚜기 콤비네이션 5,980 1 5,980
-    10 꼬깔콘허니버터132G 1,580 1 1,580
-    11 CJ미니드레싱골라담 3,980 1 3,980
-    12 청정원허브맛솔트( 1,980 1 1,980
-    13* 태국미니아스파라거 4,580 1 4,580
-    14 롯데 수박바젤리 56 980 2 1,960
-    15 바리스타 쇼콜라 32 2,250 1 2,250
-    (*) 면세 물품 27,960
-    과세 물품 41,445
-    , 부 가 세 4,145
-    합 계 73,550
-    결제대상금액 73,550"""
+    ocr_text = call_clova_ocr(file.file)
+    # ocr_text = """로딩 중 \영수증 미지참시 교환/환불 불가
+    # 정상상품에 한함, 30일 이내(신선 7일)
+    # 교환/환불 구매점에서 가능(결제카드지참)
+    # [구 매]2017-06-02 21:13 POS: 1021-5338
+    # 상품명 단가 수량 금 액
+    # 01* 노브랜드 굿밀크우 1,680 1 1,680
+    # 02 스마트알뜰양복커버 2,590 1 2,590
+    # 03 농심 포스틱 84g 1,120 1 1,120
+    # 04 농심 올리브짜파게 3,850 1 3,850
+    # 05* 산딸기 500g/박스 6,980 1 6,980
+    # 06 (G)서핑여워터슈NY 19,800 1 19,800
+    # 07 대여용부직포쇼핑백 500 1 500
+    # 08* 호주곡물오이스터블 14,720 1 14,720
+    # 09 오뚜기 콤비네이션 5,980 1 5,980
+    # 10 꼬깔콘허니버터132G 1,580 1 1,580
+    # 11 CJ미니드레싱골라담 3,980 1 3,980
+    # 12 청정원허브맛솔트( 1,980 1 1,980
+    # 13* 태국미니아스파라거 4,580 1 4,580
+    # 14 롯데 수박바젤리 56 980 2 1,960
+    # 15 바리스타 쇼콜라 32 2,250 1 2,250
+    # (*) 면세 물품 27,960
+    # 과세 물품 41,445
+    # , 부 가 세 4,145
+    # 합 계 73,550
+    # 결제대상금액 73,550"""
     # OpenAI로 특정 키워드 추출
-    ingredients = call_openai_ocr(ocr_text)
+    #ingredients = call_openai_ocr(ocr_text)
     #print(ingredients)
 
-    expiration_dates = call_openai_expiration_date(ingredients)
+    #expiration_dates = call_openai_expiration_date(ingredients)
     #print(expiration_dates)
 
-    combined_result = dict(zip(ingredients, expiration_dates))
-    print(combined_result)
+    #combined_result = dict(zip(ingredients, expiration_dates))
+    #print(combined_result)
 
+    combined_result = call_openai_food_and_expiration(ocr_text)
+    print(combined_result)
     return combined_result
