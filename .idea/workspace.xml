@@ -5,8 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="72cdf7a4-e120-43dc-aeaf-087294f2fcc9" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/openAI_recommend.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DataServer.py" beforeDir="false" afterPath="$PROJECT_DIR$/DataServer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/openAI_recommend.py" beforeDir="false" afterPath="$PROJECT_DIR$/openAI_recommend.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -74,7 +75,7 @@
       <workItem from="1726188601931" duration="8348000" />
       <workItem from="1726216883115" duration="1953000" />
       <workItem from="1726465686390" duration="1773000" />
-      <workItem from="1726703005963" duration="26701000" />
+      <workItem from="1726703005963" duration="33295000" />
     </task>
     <servers />
   </component>

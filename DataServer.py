@@ -27,7 +27,7 @@ import uuid
 from openai import OpenAI
 import time
 from fastapi.middleware.cors import CORSMiddleware
-
+from pydantic import BaseModel
 # FastAPI 앱 생성
 app = FastAPI()
 
@@ -142,3 +142,52 @@ async def upload_file(file: UploadFile = File(...)):
     print(combined_result)
 
     return combined_result
+
+class RecipeRequest(BaseModel):
+    allergies: list
+    ingredients: list
+
+def call_openai_for_recommend(allergies, ingredients):
+    # OpenAI API 호출을 위한 프롬프트 작성
+    recommend_prompt = f"""
+        사용자는 다음과 같은 음식 알레르기가 있습니다: {', '.join(allergies)}.
+        사용 가능한 재료는 다음과 같습니다: {', '.join(ingredients)}.
+
+        이 정보를 바탕으로 알레르기를 피하고, 주어진 재료를 활용한 요리법을 한국어로 추천해주세요.
+        요리법은 정중하고 자세하게 설명해주세요.
+
+        아래 형식에 맞춰 JSON 형식으로 요리법을 제공해주세요:
+
+        {{
+            "food_name": "요리 이름",
+            "recipe": "1. 첫 번째 단계\\n2. 두 번째 단계\\n3. 세 번째 단계\\n...",
+            "comment": "알레르기를 고려한 요리 설명"
+        }}
+        """
+
+    client = OpenAI(api_key=openai_api_key)
+
+    # OpenAI API 호출
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "You are a helpful chef."},
+            {"role": "user", "content": recommend_prompt}
+        ]
+    )
+
+    # OpenAI의 응답 받기
+    recipe_recommendation = response.choices[0].message.content
+
+    return recipe_recommendation
+
+
+@app.post("/recipe-recommend/")
+async def recipe_recommend(request: RecipeRequest):
+    allergies = request.allergies
+    ingredients = request.ingredients
+
+    # OpenAI를 통해 요리법 추천 받기
+    recipe_result = call_openai_for_recommend(allergies, ingredients)
+
+    return {"recipe": recipe_result}
