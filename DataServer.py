@@ -34,7 +34,8 @@ app = FastAPI()
 # CORS 설정 추가
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:7777"],  # 허용할 출처 (프론트엔드가 있는 도메인)
+    allow_origins=["*"],
+    #allow_origins=["http://localhost:7777"],  # 허용할 출처 (프론트엔드가 있는 도메인)
     allow_credentials=True,
     allow_methods=["*"],  # 모든 HTTP 메소드 허용
     allow_headers=["*"],  # 모든 헤더 허용
@@ -48,7 +49,7 @@ clova_api_url = os.getenv("CLOVA_API_URL")
 clova_secret_key = os.getenv("CLOVA_OCR_SECRET_KEY")
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
-
+################################# 영수증에서 식재료 추출 기능 #################################
 def call_clova_ocr(image_file):
     request_json = {
         'images': [{'format': 'jpg', 'name': 'receipt'}],
@@ -112,37 +113,13 @@ def call_openai_food_and_expiration(text):
 async def upload_file(file: UploadFile = File(...)):
     # OCR 처리
     ocr_text = call_clova_ocr(file.file)
-    # ocr_text = """로딩 중 \영수증 미지참시 교환/환불 불가
-    # 정상상품에 한함, 30일 이내(신선 7일)
-    # 교환/환불 구매점에서 가능(결제카드지참)
-    # [구 매]2017-06-02 21:13 POS: 1021-5338
-    # 상품명 단가 수량 금 액
-    # 01* 노브랜드 굿밀크우 1,680 1 1,680
-    # 02 스마트알뜰양복커버 2,590 1 2,590
-    # 03 농심 포스틱 84g 1,120 1 1,120
-    # 04 농심 올리브짜파게 3,850 1 3,850
-    # 05* 산딸기 500g/박스 6,980 1 6,980
-    # 06 (G)서핑여워터슈NY 19,800 1 19,800
-    # 07 대여용부직포쇼핑백 500 1 500
-    # 08* 호주곡물오이스터블 14,720 1 14,720
-    # 09 오뚜기 콤비네이션 5,980 1 5,980
-    # 10 꼬깔콘허니버터132G 1,580 1 1,580
-    # 11 CJ미니드레싱골라담 3,980 1 3,980
-    # 12 청정원허브맛솔트( 1,980 1 1,980
-    # 13* 태국미니아스파라거 4,580 1 4,580
-    # 14 롯데 수박바젤리 56 980 2 1,960
-    # 15 바리스타 쇼콜라 32 2,250 1 2,250
-    # (*) 면세 물품 27,960
-    # 과세 물품 41,445
-    # , 부 가 세 4,145
-    # 합 계 73,550
-    # 결제대상금액 73,550"""
 
     combined_result = call_openai_food_and_expiration(ocr_text)
     print(combined_result)
 
     return combined_result
 
+################################# 보유한 재료를 가지고 레시피 추천 받는 기능 #################################
 class RecipeRequest(BaseModel):
     allergies: list
     ingredients: list
@@ -189,5 +166,128 @@ async def recipe_recommend(request: RecipeRequest):
 
     # OpenAI를 통해 요리법 추천 받기
     recipe_result = call_openai_for_recommend(allergies, ingredients)
+    print(recipe_result)
 
     return {"recipe": recipe_result}
+
+################################# 신체 정보 + 식단 정보로 식단 밸런스 계산 기능 #################################
+
+# 신체 정보와 식단을 받아 RDI를 계산하는 함수
+def calculate_rdi_by_age_and_gender(age, gender):
+    if gender == "M":
+        if age < 30:
+            return 2600  # 남성, 30세 미만
+        elif age < 50:
+            return 2400  # 남성, 30-50세
+        else:
+            return 2200  # 남성, 50세 이상
+    else:
+        if age < 30:
+            return 2000  # 여성, 30세 미만
+        elif age < 50:
+            return 1800  # 여성, 30-50세
+        else:
+            return 1600  # 여성, 50세 이상
+
+def calculate_RDI(height, weight, age, gender, activity_level=1.375):
+    if gender == "M":
+        bmr = 10 * weight + 6.25 * height - 5 * age + 5  # 남성용 BMR 공식
+    elif gender == "F":
+        bmr = 10 * weight + 6.25 * height - 5 * age - 161  # 여성용 BMR 공식
+    else:
+        raise ValueError("Invalid gender. Use 'M' for Male or 'F' for Female.")
+
+    rdi = bmr * activity_level
+    return round(rdi, 2)
+
+# OpenAI API 호출을 통한 영양 분석
+def call_openai_for_nutrition(breakfast, lunch, dinner, age, gender, height=None, weight=None):
+    if height is not None and weight is not None:
+        rdi = calculate_RDI(height, weight, age, gender)
+        body_info = f"Height: {height} cm, Weight: {weight} kg, Age: {age} years, Gender: {gender}, RDI: {rdi} kcal"
+    else:
+        rdi = calculate_rdi_by_age_and_gender(age, gender)
+        body_info = f"Age: {age} years, Gender: {gender}, RDI: {rdi} kcal"
+
+    meals = f"Breakfast: {breakfast}, Lunch: {lunch}, Dinner: {dinner}"
+
+    nutrition_prompt = f"""
+                                    You are a nutrition assistant. The user has the following physical attributes:
+                                    {body_info}
+                                    The user has consumed the following meals throughout the day:
+                                    {meals}.
+
+                                    Based on this, provide the following analysis in **one JSON object**:
+
+                                    1. Provide the estimated calories for each meal and the total calories for the day. Ensure the response includes only numeric values for calories.
+                                    2. Identify any nutrients that were excessively consumed (e.g., carbohydrates, protein, fat, saturated fat, trans fat, sodium, cholesterol, sugars, fiber, vitamins (A, C, D, E, K, B12, B6), minerals (calcium, iron, magnesium, phosphorus, potassium, zinc), omega-3 fatty acids). Ensure the response includes only the nutrient names in **an array format** in Korean (e.g., ["지방", "나트륨"]).
+                                    3. Identify any nutrients that were lacking (e.g., carbohydrates, protein, fat, saturated fat, trans fat, sodium, cholesterol, sugars, fiber, vitamins (A, C, D, E, K, B12, B6), minerals (calcium, iron, magnesium, phosphorus, potassium, zinc), omega-3 fatty acids) based on the daily recommended intake. Ensure the response includes only the nutrient names in **an array format** in Korean.
+                                    4. Suggest specific foods or ingredients the user can consume to **replenish the lacking nutrients** and **reduce the excessive nutrients**. The suggestion should be formatted like this: **"[음식 목록]을 섭취하여 [lacking_nutrients]를 보충하는 것을 권장합니다."** Ensure that the foods recommended specifically address the identified lacking nutrients while avoiding those that contribute to the excess.
+                                    5. Give an overall score for the day’s meals on a scale of 1 to 100, considering nutritional balance and healthiness. Provide the score as a numeric value.
+
+                                    Ensure that the response is entirely in Korean, in the following **JSON format**:
+
+                                    {{
+                                      "kal": {{
+                                        "b": [칼로리 숫자],
+                                        "l": [칼로리 숫자],
+                                        "d": [칼로리 숫자],
+                                        "t": [총 칼로리 숫자],
+                                        "RDI": {rdi}
+                                      }},
+                                      "over": [과잉 섭취된 영양소 목록 배열],
+                                      "lack": [부족한 영양소 목록 배열],
+                                      "rec": "당신의 일일 권장 섭취량인 [RDI] kcal를 고려했을 때, 과잉 섭취된 영양소는 줄이고 부족한 영양소를 보충하기 위해 [음식 목록]을 섭취하는 것을 권장합니다.",
+                                      "score": [점수]
+                                    }}
+
+                                    Make sure the response is strictly in Korean and follows this JSON structure without any additional explanations.
+                                """
+    client = OpenAI(api_key=openai_api_key)
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "You are a helpful nutritionist."},
+            {"role": "user", "content": nutrition_prompt}
+        ]
+    )
+    nutrition_analysis = response.choices[0].message.content
+    return nutrition_analysis
+
+# 사용자의 신체 정보와 식단을 입력받는 FastAPI 모델
+from typing import Optional
+
+class NutritionRequest(BaseModel):
+    age: int
+    gender: str
+    height: Optional[float] = None  # None 허용
+    weight: Optional[float] = None  # None 허용
+    breakfast: Optional[str] = None  # None 허용
+    lunch: Optional[str] = None  # None 허용
+    dinner: Optional[str] = None  # None 허용
+
+# 영양 분석 엔드포인트 생성
+@app.post("/nutrition/")
+async def nutrition_analysis(request: NutritionRequest):
+    breakfast = request.breakfast if request.breakfast is not None else ""
+    lunch = request.lunch if request.lunch is not None else ""
+    dinner = request.dinner if request.dinner is not None else ""
+
+    result = call_openai_for_nutrition(
+        breakfast=breakfast,
+        lunch=lunch,
+        dinner=dinner,
+        age=request.age,
+        gender=request.gender,
+        height=request.height,
+        weight=request.weight
+    )
+    print(result)
+    try:
+        parsed_result = json.loads(result)  # 문자열을 JSON으로 변환
+        return parsed_result
+    except json.JSONDecodeError as e:
+        print(f"JSONDecodeError: {e}")
+        return {"error": "Invalid JSON format returned from OpenAI"}
+
+
