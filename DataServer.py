@@ -48,6 +48,7 @@ load_dotenv()
 clova_api_url = os.getenv("CLOVA_API_URL")
 clova_secret_key = os.getenv("CLOVA_OCR_SECRET_KEY")
 openai_api_key = os.getenv("OPENAI_API_KEY")
+youtube_api_key = os.getenv("YOUTUBE_API_KEY")
 
 ################################# 영수증에서 식재료 추출 기능 #################################
 def call_clova_ocr(image_file):
@@ -146,7 +147,7 @@ def call_openai_for_recommend(allergies, ingredients):
 
     # OpenAI API 호출
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-3.5-turbo-1106",
         messages=[
             {"role": "system", "content": "You are a helpful chef."},
             {"role": "user", "content": recommend_prompt}
@@ -158,6 +159,33 @@ def call_openai_for_recommend(allergies, ingredients):
 
     return recipe_recommendation
 
+def search_youtube_video(food_name):
+    print("YouTube 검색 시작:", food_name)  # 로그 추가
+    search_url = "https://www.googleapis.com/youtube/v3/search"
+    params = {
+        "part": "snippet",
+        "q": food_name,
+        "key": youtube_api_key,
+        "type": "video",
+        "maxResults": 1,
+        "order": "viewCount"  # 인기 순으로 정렬
+    }
+    response = requests.get(search_url, params=params)
+    if response.status_code == 200:
+        video_data = response.json()
+        print("YouTube 검색 응답:", video_data)  # 로그 추가
+        if video_data["items"]:
+            video_id = video_data["items"][0]["id"]["videoId"]
+            video_title = video_data["items"][0]["snippet"]["title"]
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+            print("검색된 영상:", video_title, video_url)  # 로그 추가
+            return {"title": video_title, "url": video_url}
+        else:
+            print("관련 영상을 찾을 수 없습니다.")  # 로그 추가
+            return {"title": "관련 영상을 찾을 수 없습니다.", "url": ""}
+    else:
+        print(f"Error: {response.status_code}")  # 오류 로그 추가
+        raise Exception(f"Error: {response.status_code}")
 
 @app.post("/recipe-recommend/")
 async def recipe_recommend(request: RecipeRequest):
@@ -168,7 +196,24 @@ async def recipe_recommend(request: RecipeRequest):
     recipe_result = call_openai_for_recommend(allergies, ingredients)
     print(recipe_result)
 
-    return {"recipe": recipe_result}
+    try:
+        recipe_data = json.loads(recipe_result)
+        food_name = recipe_data.get("food_name", None)
+
+        if food_name:
+            # YouTube에서 해당 요리 이름으로 영상 검색
+            youtube_result = search_youtube_video(food_name)
+            print(youtube_result)
+        else:
+            return {"error": "추천된 요리 이름이 없습니다."}
+
+        # 최종 응답 데이터 반환
+        return {"recipe": recipe_data, "youtube": youtube_result}
+
+    except json.JSONDecodeError as e:
+        print(f"Error parsing recipe result: {e}")
+        return {"error": "추천 결과를 처리하는 중 오류가 발생했습니다."}
+
 
 ################################# 신체 정보 + 식단 정보로 식단 밸런스 계산 기능 #################################
 
@@ -245,7 +290,7 @@ def call_openai_for_nutrition(breakfast, lunch, dinner, age, gender, height=None
                                 """
     client = OpenAI(api_key=openai_api_key)
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-3.5-turbo-1106",
         messages=[
             {"role": "system", "content": "You are a helpful nutritionist."},
             {"role": "user", "content": nutrition_prompt}
