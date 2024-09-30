@@ -200,19 +200,28 @@ async def recipe_recommend(request: RecipeRequest):
         recipe_data = json.loads(recipe_result)
         food_name = recipe_data.get("food_name", None)
 
-        if food_name:
-            # YouTube에서 해당 요리 이름으로 영상 검색
-            youtube_result = search_youtube_video(food_name)
-            print(youtube_result)
-        else:
-            return {"error": "추천된 요리 이름이 없습니다."}
+        youtube_result = None  # 기본값으로 None 설정
 
-        # 최종 응답 데이터 반환
+        if food_name:
+            try:
+                # YouTube에서 해당 요리 이름으로 영상 검색
+                youtube_result = search_youtube_video(food_name)
+                print(youtube_result)
+            except Exception as e:
+                print(f"Error searching YouTube: {e}")
+                # YouTube 검색 실패 시에도 recipe_data만 반환
+                return {"recipe": recipe_data, "youtube": None}
+        else:
+            # food_name이 없으면 recipe_data만 반환
+            return {"recipe": recipe_data, "youtube": None}
+
+        # YouTube 결과와 함께 recipe_data 반환
         return {"recipe": recipe_data, "youtube": youtube_result}
 
     except json.JSONDecodeError as e:
         print(f"Error parsing recipe result: {e}")
         return {"error": "추천 결과를 처리하는 중 오류가 발생했습니다."}
+
 
 
 ################################# 신체 정보 + 식단 정보로 식단 밸런스 계산 기능 #################################
