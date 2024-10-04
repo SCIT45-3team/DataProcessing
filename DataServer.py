@@ -126,21 +126,29 @@ class RecipeRequest(BaseModel):
     ingredients: list
 
 def call_openai_for_recommend(allergies, ingredients):
+    # 알러지가 있는지 여부에 따라 프롬프트를 조건부로 작성
+    if allergies:
+        allergies_text = f"사용자는 다음과 같은 음식 알레르기가 있습니다: {', '.join(allergies)}."
+    else:
+        allergies_text = "사용자는 알레르기가 없습니다."
+
     # OpenAI API 호출을 위한 프롬프트 작성
     recommend_prompt = f"""
-        사용자는 다음과 같은 음식 알레르기가 있습니다: {', '.join(allergies)}.
-        사용 가능한 재료는 다음과 같습니다: {', '.join(ingredients)}.
+            {allergies_text}
+            사용 가능한 재료는 다음과 같습니다: {', '.join(ingredients)}.
 
-        이 정보를 바탕으로 알레르기를 피하고, 주어진 재료를 활용한 요리법을 한국어로 추천해주세요.
-        요리법은 정중하고 자세하게 설명해주세요.
+            이 정보를 바탕으로, 주어진 재료를 활용한 **일반적인 요리**를 추천해주세요.
+            요리 이름은 사용된 재료의 이름을 직접 사용하지 말고, 일반적으로 잘 알려진 요리 이름으로 해주세요. 디저트가 아닌 식사로 적합한 요리여야 합니다.
 
-        아래 형식에 맞춰 JSON 형식으로 요리법을 제공해주세요:
+            요리법은 정중하고 자세하게 설명해주세요. 그리고 알레르기가 있는 경우 이를 피한 요리법을 제공해주세요.
 
-        {{
-            "food_name": "요리 이름",
-            "recipe": "1. 첫 번째 단계\\n2. 두 번째 단계\\n3. 세 번째 단계\\n...",
-            "comment": "알레르기를 고려한 요리 설명"
-        }}
+            아래 형식에 맞춰 JSON 형식으로 요리법을 제공해주세요:
+
+            {{
+                "food_name": "요리 이름 (사용 재료명을 그대로 사용하지 말고 일반적인 요리명)",
+                "recipe": "1. 첫 번째 단계\\n2. 두 번째 단계\\n3. 세 번째 단계\\n...",
+                "comment": "알레르기를 고려한 요리 설명 (알레르기가 없는 경우에도 추가 설명 제공)"
+            }}
         """
 
     client = OpenAI(api_key=openai_api_key)
