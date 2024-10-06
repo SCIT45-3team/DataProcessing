@@ -28,6 +28,8 @@ from openai import OpenAI
 import time
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
+
 # FastAPI 앱 생성
 app = FastAPI()
 
@@ -315,10 +317,62 @@ def call_openai_for_nutrition(breakfast, lunch, dinner, age, gender, height=None
         ]
     )
     nutrition_analysis = response.choices[0].message.content
-    return nutrition_analysis
+    print("최초의 데이터 : ",nutrition_analysis)
+    # JSON 확인 및 처리
+    parsed_result = custom_string_parser(nutrition_analysis)  # 응답을 JSON으로 변환
+    print("변형한 데이터 : ",parsed_result)
+    return parsed_result
 
+import re
+
+def custom_string_parser(nutrition_string):
+    result = {}
+
+    # 'kal' 부분을 찾아서 추출 (정규 표현식 사용)
+    kal_pattern = r'"kal":\s*\{\s*"b":\s*(\d+),\s*"l":\s*(\d+),\s*"d":\s*(\d+),\s*"t":\s*(\d+),\s*"RDI":\s*(\d+)'
+    kal_match = re.search(kal_pattern, nutrition_string)
+
+    if kal_match:
+        result['kal'] = {
+            "b": int(kal_match.group(1)),
+            "l": int(kal_match.group(2)),
+            "d": int(kal_match.group(3)),
+            "t": int(kal_match.group(4)),
+            "RDI": int(kal_match.group(5))
+        }
+
+    # 'over' 부분을 찾아서 추출 (정규 표현식 사용)
+    over_pattern = r'"over":\s*\[([^\]]+)\]'
+    over_match = re.search(over_pattern, nutrition_string)
+
+    if over_match:
+        over_values = over_match.group(1).replace('"', '').split(',')
+        result['over'] = [item.strip() for item in over_values]
+
+    # 'lack' 부분을 찾아서 추출 (정규 표현식 사용)
+    lack_pattern = r'"lack":\s*\[([^\]]+)\]'
+    lack_match = re.search(lack_pattern, nutrition_string)
+
+    if lack_match:
+        lack_values = lack_match.group(1).replace('"', '').split(',')
+        result['lack'] = [item.strip() for item in lack_values]
+
+    # 'rec' 부분을 찾아서 추출 (정규 표현식 사용)
+    rec_pattern = r'"rec":\s*"([^"]+)"'
+    rec_match = re.search(rec_pattern, nutrition_string)
+
+    if rec_match:
+        result['rec'] = rec_match.group(1)
+
+    # 'score' 부분을 찾아서 추출 (정규 표현식 사용)
+    score_pattern = r'"score":\s*(\d+)'
+    score_match = re.search(score_pattern, nutrition_string)
+
+    if score_match:
+        result['score'] = int(score_match.group(1))
+
+    return result
 # 사용자의 신체 정보와 식단을 입력받는 FastAPI 모델
-from typing import Optional
 
 class NutritionRequest(BaseModel):
     age: int
@@ -348,11 +402,6 @@ async def nutrition_analysis(request: NutritionRequest):
         weight=request.weight
     )
     print(result)
-    try:
-        parsed_result = json.loads(result)  # 문자열을 JSON으로 변환
-        return parsed_result
-    except json.JSONDecodeError as e:
-        print(f"JSONDecodeError: {e}")
-        return {"error": "Invalid JSON format returned from OpenAI"}
+    return result
 
 
