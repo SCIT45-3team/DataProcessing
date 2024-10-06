@@ -264,12 +264,13 @@ def calculate_RDI(height, weight, age, gender, activity_level=1.375):
 
 # OpenAI API 호출을 통한 영양 분석
 def call_openai_for_nutrition(breakfast, lunch, dinner, age, gender, height=None, weight=None):
-    if height is not None and weight is not None:
-        rdi = calculate_RDI(height, weight, age, gender)
-        body_info = f"Height: {height} cm, Weight: {weight} kg, Age: {age} years, Gender: {gender}, RDI: {rdi} kcal"
-    else:
+    if height is None or weight is None or height == 0.0 or weight == 0.0:
         rdi = calculate_rdi_by_age_and_gender(age, gender)
         body_info = f"Age: {age} years, Gender: {gender}, RDI: {rdi} kcal"
+    else:
+        rdi = calculate_RDI(height, weight, age, gender)
+        body_info = f"Height: {height} cm, Weight: {weight} kg, Age: {age} years, Gender: {gender}, RDI: {rdi} kcal"
+
 
     meals = f"Breakfast: {breakfast}, Lunch: {lunch}, Dinner: {dinner}"
 
@@ -322,8 +323,8 @@ from typing import Optional
 class NutritionRequest(BaseModel):
     age: int
     gender: str
-    height: Optional[float] = None  # None 허용
-    weight: Optional[float] = None  # None 허용
+    height: Optional[int] = None  # None 허용
+    weight: Optional[int] = None  # None 허용
     breakfast: Optional[str] = None  # None 허용
     lunch: Optional[str] = None  # None 허용
     dinner: Optional[str] = None  # None 허용
@@ -334,6 +335,8 @@ async def nutrition_analysis(request: NutritionRequest):
     breakfast = request.breakfast if request.breakfast is not None else ""
     lunch = request.lunch if request.lunch is not None else ""
     dinner = request.dinner if request.dinner is not None else ""
+
+    print(f"Received data: {request.dict()}")  # 콘솔에 출력
 
     result = call_openai_for_nutrition(
         breakfast=breakfast,
